@@ -7,7 +7,17 @@ format:
     code-fold: true
     embed-resources: true
 jupyter: python3
+echo: false
 ---
+
+```{python}
+import pandas as pd
+import numpy as np
+```
+
+```{python}
+rest22 = pd.read_csv("C:\\Users\\shiva\\Desktop\\STAT 3255\\final-project-shivaram-k\\data\\DOHMH_New_York_City_Restaurant_Inspection_Results.csv")
+```
 Introduction: Introducing the topic and why you have chosen this topic (3–5 lines). Mention briefly the current related research and cite relevant works.
 
 
