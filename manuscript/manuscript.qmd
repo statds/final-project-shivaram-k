@@ -1,0 +1,15 @@
+---
+title: ""
+subtitle: ""
+author: "Shivaram Karandikar"
+format:
+  revealjs: 
+    embed-resources: true
+    slide-number: true
+    preview-links: auto
+    theme: serif
+    footer: "UConn Intro to Data Science: STAT 3255/5255"
+    tbl-colwidths: true
+resources:
+  - demo.pdf
+---

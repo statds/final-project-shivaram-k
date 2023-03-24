@@ -1,0 +1,22 @@
+---
+title: "Final Project Proposal"
+author: "Shivaram Karandikar"
+date: "March 24, 2023"
+format:
+  html:
+    code-fold: true
+    embed-resources: true
+jupyter: python3
+---
+Introduction: Introducing the topic and why you have chosen this topic (3–5 lines). Mention briefly the current related research and cite relevant works.
+
+
+Specific aims: Formulate a research question or hypothesis in the chosen topic. Describe briefly why you select such a question or hypothesis and its importance in the field (cite sources).
+
+Data description: Describe your data set (for instance: sampling scheme, number of observations, number of variables, variables of interest, nature of the variables) and the source of your data set if it is not collected by yourself.
+
+Research design/methods/schedule: Describe briefly (5-7 lines) your plan of action. If you choose to apply any specific statistical methods, please mention and cite them. Please be consistent here with your research hypothesis. Write a line regarding how the methods would help in investigating the research hypothesis.
+
+Discussion: What do you expect to find and why do you feel so? Any ways your work can corroborate or challenge existing results or assumptions? What are the potential impacts of your work? What if the results of your investigation is not what you expected?
+
+Conclusion: Wrap it up by briefly summarizing your research proposal and reinforcing your research’s stated purpose.
