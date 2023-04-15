@@ -1,0 +1,80 @@
+```{python}
+import pandas as pd
+import numpy as np
+import plotnine as p9
+import scipy.stats as stats
+from uszipcode import SearchEngine
+sr = SearchEngine()
+```
+
+```{python}
+rest22=pd.read_csv(r"C:\Users\shiva\Desktop\STAT 3255\final-project-shivaram-k\data\DOHMH_New_York_City_Restaurant_Inspection_Results.csv")
+rest22 = rest22.iloc[:, :-6]
+```
+Removing columns not needed for analysis
+```{python}
+pd.set_option('display.max_columns', None)
+```
+
+```{python}
+def get_zipcode(df):
+    return sr.by_coordinates(df['Latitude'], df['Longitude'], radius=5, returns=1)[0].zipcode
+
+
+rest22['ZIPCODE'] = rest22.apply(lambda x: get_zipcode(x) if (pd.isna(x['ZIPCODE']) and pd.notna(x['Latitude']) and pd.notna(x['Longitude'])) else x['ZIPCODE'], axis=1)
+```
+Filling in missing zipcodes using latitude and longitude
+
+
+```{python}
+rest22['BORO'] = rest22.apply(lambda x: 'Manhattan' if x['CAMIS'] == 50060598 else x['BORO'], axis=1)
+rest22['BORO'] = rest22.apply(lambda x: 'Brooklyn' if x['CAMIS'] == 50005059 else x['BORO'], axis=1)
+rest22['BORO'] = rest22.apply(lambda x: 'Manhattan' if x['CAMIS'] == 40883586 else x['BORO'], axis=1)
+```
+
+'BORO' variable has a factor level '0' for a few rows. Because the zip code and latitude/longitude is missing for these rows, the correct borough will be imputed using the CAMIS number. The CAMIS number is a unique identifier for each restaurant. The CAMIS number for the restaurants with the incorrect borough is found using Google and the correct borough is imputed.
+
+```{python}
+rest22.dropna(subset=['VIOLATION CODE'], inplace=True)
+rest22.dropna(subset=['GRADE'], inplace=True)
+rest22.dropna(subset=['GRADE DATE'], inplace=True)
+```
+
+```{python}
+rest22 = rest22[rest22['VIOLATION CODE'].str.contains('-') == False]
+```
+removing violation codes that were incorrectly input, as there is no method of determining which specific violations are referred to by these codes
+
+```{python}
+vicode=pd.read_csv("C:\\Users\\shiva\\Desktop\\STAT 3255\\final-project-shivaram-k\\data\\Violation-Health-Code-Mapping.csv")
+```
+
+```{python}
+vicode['Category_Description'].value_counts()
+```
+
+```{python}
+newdf = rest22.merge(vicode.drop_duplicates(subset=['Violation_Code']), left_on='VIOLATION CODE', right_on='Violation_Code', how='left')
+```
+
+```{python}
+newdf['ACTION'] = newdf['ACTION'].replace(['Violations were cited in the following area(s).', 'Establishment re-opened by DOHMH.','Establishment Closed by DOHMH. Violations were cited in the following area(s) and those requiring immediate action were addressed.'], ['Violation', 'Re-Opened', 'Closed'])
+```
+
+
+```{python}
+newdf = newdf[['BORO', 'GRADE', 'ACTION', 'CRITICAL FLAG', 'SCORE', 'INSPECTION TYPE']]
+```
+
+```{python}
+newdf=newdf.dropna()
+```
+
+```{python}
+for col in ['BORO', 'GRADE', 'ACTION', 'CRITICAL FLAG', 'INSPECTION TYPE']:
+    newdf[col] = newdf[col].astype('category')
+```
+
+```{python}
+dummies = pd.get_dummies(newdf, dtype='int64')
+```

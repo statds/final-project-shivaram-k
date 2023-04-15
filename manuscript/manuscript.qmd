@@ -13,3 +13,51 @@ format:
 resources:
   - demo.pdf
 ---
+
+## Outline
+
+
+# Data 
+
+## Scope {.smaller}
+
+## Preparation {.scrollable .smaller}
+
+## Questions of Interest
+
+# 
+
+## Visualization {.scrollable}
+::: {.panel-tabset}
+### 
+
+### 
+
+:::
+## Methods {.smaller}
+
+## Analysis {.smaller}
+
+# 
+
+## Visualization {.scrollable .smaller}
+::: {.panel-tabset}
+
+### 
+
+### 
+
+:::
+## Methods {.scrollable .smaller}
+
+## Analysis {.scrollable .smaller}
+::: {.panel-tabset}
+### 
+
+### 
+
+:::
+
+
+## Conclusion {.scrollable .smaller}
+
