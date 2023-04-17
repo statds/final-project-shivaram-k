@@ -37,6 +37,7 @@ pd.set_option('display.max_columns', None)
 # Outline
 
 ---
+
 - Questions of Interest
 - Data
   - Scope
@@ -51,6 +52,8 @@ pd.set_option('display.max_columns', None)
 # Questions of Interest
 
 ---
+
+
 
 ## Previous Work
 
