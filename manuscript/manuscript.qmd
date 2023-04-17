@@ -1,6 +1,5 @@
 ---
-title: ""
-subtitle: ""
+title: "NYC Restaurant Inspection Data Analysis"
 author: "Shivaram Karandikar"
 format:
   revealjs: 
@@ -13,44 +12,80 @@ format:
 resources:
   - demo.pdf
 ---
+```{python}
+import pandas as pd
+import numpy as np
+import plotnine as p9
+import matplotlib as plt
+import scipy.stats as stats
+from uszipcode import SearchEngine
+sr = SearchEngine()
+```
 
-## Outline
+```{python}
+rest22 = pd.read_csv("../data/DOHMH_New_York_City_Restaurant_Inspection_Results.csv")
+```
 
+```{python}
+
+```
+
+```{python}
+pd.set_option('display.max_columns', None)
+```
+
+# Outline
+
+---
+- Questions of Interest
+- Data
+  - Scope
+  - Preparation
+- Visualization
+- Analysis
+  - Hypothesis Testing
+  - Random Forest Regression
+- Conclusion
+
+
+# Questions of Interest
+
+---
+
+## Previous Work
 
 # Data 
 
-## Scope {.smaller}
+## Scope {.scrollable .smaller}
+
+- NYC OpenData: [DOHMH New York City Restaurant Inspection Results](https://data.cityofnewyork.us/Health/DOHMH-New-York-City-Restaurant-Inspection-Results/43nn-pn8j)
+  - January 1st, 2022 to December 31st, 2022
+  - 
+
+
+```{python}
+rest22.head()
+```
 
 ## Preparation {.scrollable .smaller}
 
-## Questions of Interest
-
-# 
-
-## Visualization {.scrollable}
 ::: {.panel-tabset}
-### 
+### Cleaning
 
-### 
+```{python}
+rest22 = rest22.iloc[:, :-6]
+```
+
+### Manipulation
+
 
 :::
-## Methods {.smaller}
 
-## Analysis {.smaller}
 
-# 
+# Visualization
 
-## Visualization {.scrollable .smaller}
-::: {.panel-tabset}
+---
 
-### 
-
-### 
-
-:::
-## Methods {.scrollable .smaller}
-
-## Analysis {.scrollable .smaller}
 ::: {.panel-tabset}
 ### 
 
@@ -58,6 +93,12 @@ resources:
 
 :::
 
+# Analysis
+
+## Hypothesis Testing {.scrollable .smaller}
+
+
+## Random Forest Regression {.scrollable .smaller}
 
 ## Conclusion {.scrollable .smaller}
 
