@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 import plotnine as p9
+from plotnine import *
 import matplotlib as plt
 import scipy.stats as stats
 from uszipcode import SearchEngine
@@ -78,6 +79,20 @@ make new variable that, when newdf is grouped by CAMIS and Inspection Date, is t
 newdf['CRITICAL COUNT'] = newdf.groupby(['CAMIS', 'INSPECTION DATE'])['CRITICAL FLAG'].transform('sum')
 ```
 
+drop rows where GRADE is N, Z, or P
+
+```{python}
+newdf = newdf[newdf['GRADE'].isin(['A', 'B', 'C'])]
+```
+
+
+make new column day type which returns 'weekday' if the inspection date is a weekday and 'weekend' if the inspection date is a weekend
+
+```{python}
+newdf['DAY TYPE'] = newdf['INSPECTION DATE'].apply(lambda x: 'Weekday' if pd.to_datetime(x).weekday() < 5 else 'Weekend')
+```
+
+
 make a variable for every category description which, when newdf is grouped by CAMIS and Inspection Date, is the sum of the violations for each category description
 
 ```{python}
@@ -97,19 +112,58 @@ drop duplicate rows where CAMIS and Inspection Date are the same
 newdf.drop_duplicates(subset=['CAMIS', 'INSPECTION DATE'], inplace=True)
 ```
 
-drop rows where GRADE is N, Z, or P
-
+plot the 10 most frequent cuisine descriptions in plotnine
 ```{python}
-newdf = newdf[newdf['GRADE'].isin(['A', 'B', 'C'])]
-```
+(
+    ggplot(newdf, aes(x='BORO', fill = 'GRADE')) + geom_bar() + theme(axis_text_x = element_text(angle = 90, hjust = 1)) + labs(title = 'Number of Inspections by Borough and Grade', x = 'Borough', y = 'Number of Inspections')
+)
+ ```
 
-drop columns that are not needed for analysis by index
+ ```{python}
+ (
+    ggplot(newdf, aes(x='BORO', y = 'SCORE', fill = 'BORO')) + coord_flip() + geom_violin() + labs(title = 'Distribution of Inspection Scores by Borough', x = 'Borough', y = 'Score') + theme(legend_position = 'none')
+)
+ ```
 
-make new column day type which returns 'weekday' if the inspection date is a weekday and 'weekend' if the inspection date is a weekend
 
-```{python}
-newdf['DAY TYPE'] = newdf['INSPECTION DATE'].apply(lambda x: 'Weekday' if pd.to_datetime(x).weekday() < 5 else 'Weekend')
-```
+ ```{python}
+ gmp = newdf.dropna(subset=['Latitude', 'Longitude'])
+ import gmplot
+ gmap = gmplot.GoogleMapPlotter.from_geocode("New York City", apikey='AIzaSyD6bvbXQdG9WX7aab1tQKHorou7Fkjj6j0')
+ gmap.heatmap(gmp['Latitude'], gmp['Longitude'])
+ gmap.draw("heatmap.html")
+ ```
+ gmplot scatter of locations with different colors for different grades
+
+
+ ```{python}
+
+    gmap = gmplot.GoogleMapPlotter(40.730610, -73.935242, 11, apikey='AIzaSyD6bvbXQdG9WX7aab1tQKHorou7Fkjj6j0')
+
+    # Plot the latitude and longitude points on the map
+    a_lats = newdf[newdf['GRADE'] == 'A']['Latitude']
+    a_lons = newdf[newdf['GRADE'] == 'A']['Longitude']
+    b_lats = newdf[newdf['GRADE'] == 'B']['Latitude']
+    b_lons = newdf[newdf['GRADE'] == 'B']['Longitude']
+    c_lats = newdf[newdf['GRADE'] == 'C']['Latitude']
+    c_lons = newdf[newdf['GRADE'] == 'C']['Longitude']
+
+    gmap.scatter(a_lats, a_lons, '#FF0000', label='A')
+    gmap.scatter(b_lats, b_lons, '#00FF00', label='B')
+    gmap.scatter(c_lats, c_lons, '#0000FF', label='C')
+
+    # Add labels to the points on the map
+    for i, row in newdf.iterrows():
+        label = row['GRADE']
+        lat = row['Latitude']
+        lon = row['Longitude']
+        gmap.marker(lat, lon, title=label)
+
+
+    # Draw the map and save it to an HTML file
+    gmap.draw('scmap.html')
+ ```
+ 
 
 
 ```{python}
