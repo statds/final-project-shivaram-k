@@ -10,7 +10,7 @@ sr = SearchEngine()
 ```
 
 ```{python}
-rest22=pd.read_csv("./data/DOHMH_New_York_City_Restaurant_Inspection_Results.csv")
+rest22=pd.read_csv("../data/DOHMH_New_York_City_Restaurant_Inspection_Results.csv")
 rest22 = rest22.iloc[:, :-6]
 ```
 Removing columns not needed for analysis
@@ -48,7 +48,7 @@ rest22 = rest22[rest22['VIOLATION CODE'].str.contains('-') == False]
 removing violation codes that were incorrectly input, as there is no method of determining which specific violations are referred to by these codes
 
 ```{python}
-vicode=pd.read_csv("./data/Violation-Health-Code-Mapping.csv")
+vicode=pd.read_csv("../data/Violation-Health-Code-Mapping.csv")
 ```
 
 ```{python}
@@ -67,52 +67,55 @@ newdf['ACTION'] = newdf['ACTION'].replace(['Violations were cited in the followi
 newdf['VIOLATION COUNT'] = newdf.groupby(['CAMIS', 'INSPECTION DATE'])['VIOLATION CODE'].transform('count')
 ```
 
-turn 'CRITICAL FLAG' into a binary variable, 1 for critical and 0 for not critical
+
 
 ```{python}
 newdf['CRITICAL FLAG'] = newdf['CRITICAL FLAG'].replace(['Critical', 'Not Critical'], [1, 0])
 ```
 
-make new variable that, when newdf is grouped by CAMIS and Inspection Date, is the sum of the critical flags for each violation
 
 ```{python}
 newdf['CRITICAL COUNT'] = newdf.groupby(['CAMIS', 'INSPECTION DATE'])['CRITICAL FLAG'].transform('sum')
 ```
 
-drop rows where GRADE is N, Z, or P
+
 
 ```{python}
 newdf = newdf[newdf['GRADE'].isin(['A', 'B', 'C'])]
 ```
 
 
-make new column day type which returns 'weekday' if the inspection date is a weekday and 'weekend' if the inspection date is a weekend
+
 
 ```{python}
 newdf['DAY TYPE'] = newdf['INSPECTION DATE'].apply(lambda x: 'Weekday' if pd.to_datetime(x).weekday() < 5 else 'Weekend')
 ```
 
 
-make a variable for every category description which, when newdf is grouped by CAMIS and Inspection Date, is the sum of the violations for each category description
+
 
 ```{python}
 for i in vicode['Category_Description'].unique():
     newdf[i] = newdf.groupby(['CAMIS', 'INSPECTION DATE'])['Category_Description'].transform(lambda x: (x == i).sum())
 ```
 
-drop columns that only have one value
+
 
 ```{python}
 newdf = newdf.loc[:, newdf.apply(pd.Series.nunique) != 1]
 ```
 
-drop duplicate rows where CAMIS and Inspection Date are the same
+
 
 ```{python}
 newdf.drop_duplicates(subset=['CAMIS', 'INSPECTION DATE'], inplace=True)
 ```
 
-plot the 10 most frequent cuisine descriptions in plotnine
+```{python}
+newdf.to_csv("../data/newdf.csv", index=False)
+```
+
+
 ```{python}
 (
     ggplot(newdf, aes(x='BORO', fill = 'GRADE')) + geom_bar() + theme(axis_text_x = element_text(angle = 90, hjust = 1)) + labs(title = 'Number of Inspections by Borough and Grade', x = 'Borough', y = 'Number of Inspections')
@@ -126,6 +129,22 @@ plot the 10 most frequent cuisine descriptions in plotnine
  ```
 
 
+
+```{python}
+(
+    ggplot(newdf, aes(x='BORO', fill = 'GRADE')) + geom_bar(position = 'fill') + theme(axis_text_x = element_text(angle = 90, hjust = 1)) + labs(title = 'Proportion of Grades by Borough', x = 'Borough', y = 'Proportion of Grades')
+)
+ ```
+
+
+```{python}
+cuislist = newdf['CUISINE DESCRIPTION'].value_counts().tolist()
+import matplotlib.pyplot as plt
+plt.pie(cuislist, labels = newdf['CUISINE DESCRIPTION'].value_counts().index.tolist(), rotatelabels=True, radius = 2)
+plt.show()
+```
+
+
  ```{python}
  gmp = newdf.dropna(subset=['Latitude', 'Longitude'])
  import gmplot
@@ -133,36 +152,7 @@ plot the 10 most frequent cuisine descriptions in plotnine
  gmap.heatmap(gmp['Latitude'], gmp['Longitude'])
  gmap.draw("heatmap.html")
  ```
- gmplot scatter of locations with different colors for different grades
 
-
- ```{python}
-
-    gmap = gmplot.GoogleMapPlotter(40.730610, -73.935242, 11, apikey='AIzaSyD6bvbXQdG9WX7aab1tQKHorou7Fkjj6j0')
-
-    # Plot the latitude and longitude points on the map
-    a_lats = newdf[newdf['GRADE'] == 'A']['Latitude']
-    a_lons = newdf[newdf['GRADE'] == 'A']['Longitude']
-    b_lats = newdf[newdf['GRADE'] == 'B']['Latitude']
-    b_lons = newdf[newdf['GRADE'] == 'B']['Longitude']
-    c_lats = newdf[newdf['GRADE'] == 'C']['Latitude']
-    c_lons = newdf[newdf['GRADE'] == 'C']['Longitude']
-
-    gmap.scatter(a_lats, a_lons, '#FF0000', label='A')
-    gmap.scatter(b_lats, b_lons, '#00FF00', label='B')
-    gmap.scatter(c_lats, c_lons, '#0000FF', label='C')
-
-    # Add labels to the points on the map
-    for i, row in newdf.iterrows():
-        label = row['GRADE']
-        lat = row['Latitude']
-        lon = row['Longitude']
-        gmap.marker(lat, lon, title=label)
-
-
-    # Draw the map and save it to an HTML file
-    gmap.draw('scmap.html')
- ```
  
 
 
@@ -170,13 +160,13 @@ plot the 10 most frequent cuisine descriptions in plotnine
 learndf = newdf.drop(columns=['CAMIS', 'DBA', 'BUILDING', 'STREET', 'ZIPCODE', 'PHONE', 'CUISINE DESCRIPTION', 'INSPECTION DATE', 'ACTION', 'VIOLATION CODE', 'CRITICAL FLAG', 'GRADE DATE', 'Violation_Code', 'Category_Description', 'Condition I', 'Condition II', 'Condition III', 'Condition IV', 'Condition V', 'Violation_Template', 'Health_Code', 'BBL', 'BIN', 'NTA', 'Latitude', 'Longitude', 'Census Tract', 'Community Board', 'Council District', 'Violation_Summary', 'VIOLATION DESCRIPTION'])
 ```
 
-rename Inspection Type as Cycle Inspection, a binary variable, where 1 for Cycle Inspection and 0 for Pre-permit Inspection
+
 
 ```{python}
 learndf['INSPECTION TYPE'] = learndf['INSPECTION TYPE'].replace(['Cycle Inspection / Initial Inspection', 'Cycle Inspection / Re-inspection', 'Pre-permit (Operational) / Initial Inspection', 'Pre-permit (Operational) / Re-inspection', 'Cycle Inspection / Reopening Inspection', 'Pre-permit (Operational) / Reopening Inspection'], ['Cycle', 'Cycle', 'Pre-permit', 'Pre-permit', 'Cycle', 'Pre-permit'])
 ```
 
-encode data
+
 
 ```{python}
 learndf = pd.get_dummies(learndf, columns=['BORO', 'DAY TYPE', 'INSPECTION TYPE'])
@@ -187,6 +177,11 @@ learndf['GRADE'] = learndf['GRADE'].replace(['A', 'B', 'C'], [1, 2, 3])
 ```{python}
 y = np.array(learndf['SCORE'])
 X = np.array(learndf.drop('SCORE', axis=1))
+```
+
+
+```{python}
+feature_names = learndf.drop('SCORE', axis=1).columns
 ```
 
 ```{python}
@@ -226,7 +221,7 @@ print('Mean Absolute Error:', metrics.mean_absolute_error(y_test, predictions)) 
 print('Root Mean Squared Error:', np.sqrt(metrics.mean_squared_error(y_test, predictions))) # 2.392526996412857
 ```
 
-perform random search and grid search to find the best hyperparameters for the random forest model
+
 
 ```{python}
 from sklearn.model_selection import RandomizedSearchCV
@@ -314,13 +309,50 @@ print('Root Mean Squared Error:', np.sqrt(metrics.mean_squared_error(y_test, rs_
 ```
 
 
+```{python}
+viz = RandomForestRegressor(max_features='auto', min_samples_leaf=2, min_samples_split=5, n_estimators=1400, random_state=19)
+```
 
+```{python}
+viz.fit(X_train, y_train)
+```
+
+```{python}
+vizpred = viz.predict(X_test)
+```
+
+```{python}
+viz.score(X_test, y_test)
+```
+
+```{python}
+from sklearn.inspection import permutation_importance
+perm_imp=permutation_importance(viz, X_test, y_test)
+```
+
+```{python}
+plt.rcParams.update({'figure.figsize': (12.0, 8.0)})
+plt.rcParams.update({'font.size': 14})
+sorted_idx = perm_imp.importances_mean.argsort()
+plt.barh(feature_names[sorted_idx], perm_imp.importances_mean[sorted_idx])
+plt.xlabel("Permutation Importance")
+plt.show()
+```
+
+```{python}
+import os
+os.environ["PATH"] += os.pathsep + 'C:/Program Files (x86)/Graphviz2.38/bin/'
+```
 ```{python}
 from sklearn.tree import export_graphviz
 import pydot
-tree = rf.estimators_[5]
+tree = viz.estimators_[5]
 export_graphviz(tree, out_file = 'tree.dot', feature_names = list(learndf.drop('SCORE', axis=1)), rounded = True, precision = 1)
 (graph, ) = pydot.graph_from_dot_file('tree.dot')
 graph.write_png('tree.png')
 ```
 
+
+```{python}
+learndf.to_csv('../data/learndf.csv', index=False)
+```
