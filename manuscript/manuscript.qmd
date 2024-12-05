@@ -1,0 +1,363 @@
+---
+title: "NYC Restaurant Inspection Data Analysis"
+author: "Shivaram Karandikar"
+format:
+  revealjs: 
+    embed-resources: true
+    slide-number: true
+    preview-links: auto
+    theme: serif
+    footer: "UConn Intro to Data Science: STAT 3255/5255"
+    tbl-colwidths: true
+    echo: false
+    output: false
+    
+resources:
+  - demo.pdf
+---
+
+```{python}
+import pandas as pd
+import numpy as np
+import plotnine as p9
+from plotnine import *
+from plotnine.data import *
+import matplotlib as plt
+import scipy.stats as stats
+from uszipcode import SearchEngine
+sr = SearchEngine()
+import scikit_posthocs as sp
+```
+
+```{python}
+
+rest22 = pd.read_csv("../data/DOHMH_New_York_City_Restaurant_Inspection_Results.csv")
+```
+
+```{python}
+pd.set_option('display.max_columns', None)
+```
+
+# Outline
+
+------------------------------------------------------------------------
+
+-   Questions of Interest
+-   Data
+    -   Scope
+    -   Preparation
+-   Visualization
+-   Analysis
+    -   Hypothesis Testing
+    -   Random Forest Regression
+-   Conclusion
+
+# Questions of Interest
+
+------------------------------------------------------------------------
+
+-   How does the distribution of inspection scores differ between boroughs?
+-   What are the factors that contribute to a restaurant's inspection score?
+
+## Previous Work {.scrollable .smaller}
+
+- [Moraes, R.M., Bari, A., Zhu, J. (2019)](https://link.springer.com/chapter/10.1007/978-3-030-37599-7_45)
+    -   Used NYC Restaurant Inspection Data in conjunction with crime data to predict apartment prices in NYC.
+        -   Found that recurrent neural networks using the inspection and crime data could predict apartment prices with greater accuracy than ARIMA, or Auto-Regressive Integrated Moving Average models. 
+
+- What can we do differently?
+    -   Inspection data has been successfully applied to an external problem, but how can we use it to better understand the restaurant inspection process itself?
+    -   Can we use the data to predict inspection scores?
+        -   Does the type of inspection affect the score?
+        -   How do the types and number of violations affect the score?
+        -   Time/Day, Location (Borough), Cuisine, etc.
+
+# Data
+
+## Scope {.scrollable .smaller}
+
+-   NYC OpenData: [DOHMH New York City Restaurant Inspection Results](https://data.cityofnewyork.us/Health/DOHMH-New-York-City-Restaurant-Inspection-Results/43nn-pn8j)
+    -   January 1st, 2022 to December 31st, 2022
+    -   92,927 rows, 32 columns
+        -   Each row represents a single violation for a restaurant.
+    -   Variables of Interest: 'SCORE' and 'GRADE'
+        -   'SCORE' is the sum of all violation points for the inspection.
+        -   'GRADE' is the letter grade based off the score:
+            -   A: 0 \<= 'SCORE' \<= 13
+            -   B: 14 \<= 'SCORE' \<= 27
+            -   C: 28 \<= 'SCORE'
+
+```{python}
+#| output: true
+rest22.head()
+```
+
+## Preparation {.scrollable .smaller}
+
+::: panel-tabset
+### Cleaning
+
+-   Variables irrelevant to analysis are removed.
+-   Missing/Incorrect Values:
+    -   Missing zip code values filled using the [uszipcode](https://pypi.org/project/uszipcode/) package.
+        -   Unspecified boroughs imputed using the zip code.
+    -   Rows with missing 'SCORE' and 'GRADE' values are removed.
+    -   Incorrect 'VIOLATION CODE' values are removed.
+
+```{python}
+
+rest22 = rest22.iloc[:, :-6]
+```
+
+```{python}
+newdf = pd.read_csv("../data/newdf.csv")
+
+```
+
+```{python}
+#| output: true
+newdf.head()
+```
+### Manipulation
+
+-   Joined restaurant inspection data with violation code data from the [Violation Health Code Mapping](https://github.com/nychealth/Food-Safety-Health-Code-Reference/blob/main/Violation-Health-Code-Mapping.csv) dataset.
+
+    -   Includes important categorical information about each violation.
+
+-   Created new variables:
+
+    -   'VIOLATION COUNT': Number of violations for each inspection.
+    -   'CRITICAL COUNT': Number of critical violations for each inspection. A critical violation is one that could cause foodborne illness.
+    -   'DAY TYPE': Whether the inspection was on a weekday or weekend.
+    -   23 new variables for each violation category.
+        -   Each variable represents the number of violations in each category for each inspection.
+
+-   Data is now grouped by restaurant and inspection date.
+
+    -   Each row represents a single inspection for a restaurant.
+
+```{python}
+#| output: true
+newdf[['CAMIS', 'DBA', 'CUISINE DESCRIPTION', 'BORO', 'INSPECTION DATE', 'SCORE', 'GRADE', 'INSPECTION TYPE', 'VIOLATION COUNT', 'CRITICAL COUNT', 'DAY TYPE', 'COOKING', 'HOT HOLDING', 'REHEATING & HOT HOLDING', 'COLD HOLDING', 'REDUCE OXYGEN PACKAGE', 'COOLING & REFRIGERATION', 'UNAPPROVED SOURCE', 'FOOD PROTECTION', 'ADULTERATED', 'PLUMBING', 'CONTAMINATION', 'PERMIT/FPC', 'FOOD WORKERS', 'HACCP PLAN', 'TEMPERATURE REGULATING', 'PEST CONTROL', 'LIGHT, HEAT & VENTILATION', 'MAINTENANCE, CONSTRUCTION & PLACEMENT', 'HANDWASH/TOILET', 'WAREWASHING', 'UTENSILS', 'SIGNS']].head()
+```
+:::
+
+# Visualization
+
+## Visualization {.scrollable .smaller}
+
+::: panel-tabset
+
+### Pie Chart
+
+```{python}
+#| output: true
+cuislist = newdf['CUISINE DESCRIPTION'].value_counts().tolist()
+import matplotlib.pyplot as plt
+plt.pie(cuislist, labels = newdf['CUISINE DESCRIPTION'].value_counts().index.tolist())
+plt.show()
+```
+
+```{python}
+#| output: true
+catlist = newdf['Category_Description'].value_counts().tolist()
+plt.pie(catlist, labels=newdf['Category_Description'].value_counts().index.tolist())
+plt.show()
+```
+
+### Bar Chart
+
+```{python}
+#| output: true
+(
+  ggplot(newdf, aes(x='BORO', fill = 'CUISINE DESCRIPTION')) + geom_bar() + labs(title = 'Distribution of Inspections by Borough', x = 'Borough', y = 'Count')
+)
+```
+
+```{python}
+#| output: true
+(
+    ggplot(newdf, aes(x='SCORE', y = after_stat('ncount'), fill = 'BORO')) + geom_histogram(binwidth = 5) + labs(title = 'Distribution of Inspection Scores by Borough', x = 'Score', y = 'Count (normalized)') + facet_wrap('BORO') + theme(legend_position = 'none')
+)
+```
+
+### Violin Plot
+
+```{python}
+#| output: true
+(
+  ggplot(newdf, aes(x='BORO', y = 'SCORE', fill = 'BORO')) + coord_flip() + geom_violin() + labs(title = 'Distribution of Inspection Scores by Borough', x = 'Borough', y = 'Score') + theme(legend_position = 'none')
+)
+```
+
+### Heatmap
+
+<iframe src="heatmap.html" width="100%" height="400px"></iframe>
+
+:::
+
+# Analysis
+
+## Hypothesis Testing {.scrollable .smaller}
+
+::: {.panel-tabset}
+
+### Kruskal-Wallis Test
+
+-   The Kruskal-Wallis test is used to compare the distributions of `SCORE` for each borough.
+-   The hypotheses are as follows:
+    -   $H_0$: The distributions of `SCORE` for borough $i$ are equal.
+    -   $H_1$: The distributions of `SCORE` for borough $i$ are not equal.
+
+```{python}
+#| output: true
+newdf.groupby('BORO')['SCORE'].describe()
+```
+
+```{python}
+sco_brk = newdf[newdf['BORO']=='Brooklyn']['SCORE'].values
+sco_brx = newdf[newdf['BORO']=='Bronx']['SCORE'].values
+sco_mnh = newdf[newdf['BORO']=='Manhattan']['SCORE'].values
+sco_que = newdf[newdf['BORO']=='Queens']['SCORE'].values
+sco_sti = newdf[newdf['BORO']=='Staten Island']['SCORE'].values
+```
+
+```{python}
+#| output: true
+stats.kruskal(sco_brk, sco_brx, sco_mnh, sco_que, sco_sti)
+```
+
+The null hypothesis is rejected at $\alpha = 0.01$.
+
+### Dunn's Test
+
+-   Dunn's Test is a post-hoc test which performs multiple pairwise comparisons between the distributions of `SCORE` for each borough.
+-   The hypotheses are as follows:
+    -   $H_0$: The distributions of `SCORE` for borough $i$ and borough $j$ are the same.
+    -   $H_1$: The distributions of `SCORE` for borough $i$ and borough $j$ are different.
+
+```{python}
+#| output: true
+sp.posthoc_dunn(newdf, val_col='SCORE', group_col='BORO', p_adjust = 'bonferroni')
+```
+
+```{python}
+#| output: true
+sp.posthoc_dunn(newdf, val_col='SCORE', group_col='BORO', p_adjust = 'bonferroni') < 0.05
+```
+:::
+
+## Random Forest Regression {.scrollable .smaller}
+```{python}
+learndf = pd.read_csv("../data/learndf.csv")
+```
+
+::: panel-tabset
+### Preparation
+
+-   Random Forest Regression is used to predict the inspection score.
+-   Preprocessing steps include:
+    -   Dummy variables are created for categorical variables.
+    -   'GRADE' is converted to a numeric variable using ordinal encoding.
+    -   The data is split into training and testing sets.
+
+```{python}
+#| output: true
+learndf.head()
+```
+
+-   Average Baseline error is calculated from the mean of the absolute difference between the average training score and the testing score.
+
+```{python}
+#| output: true
+print('Average Baseline Error: 4.26')
+```
+
+### Models
+
+Models are created using `RandomForestRegressor` from `sklearn.ensemble`
+
+The first model `rf` is created using $n = 1000$ trees.
+
+The parameters of the model are as follows:
+
+```{python}
+#| output: true
+print("{'bootstrap': True, 'ccp_alpha': 0.0, 'criterion': 'squared_error', 'max_depth': None, 'max_features': 1.0, 'max_leaf_nodes': None, 'max_samples': None, 'min_impurity_decrease': 0.0, 'min_samples_leaf': 1, 'min_samples_split': 2, 'min_weight_fraction_leaf': 0.0, 'n_estimators': 1000, 'n_jobs': None, 'oob_score': False, 'random_state': 19, 'verbose': 0, 'warm_start': False}")
+```
+
+Results:
+
+```{python}
+#| output: true
+print('Mean Squared Error: 5.72')
+print('Mean Absolute Error: 1.26')
+print('Root Mean Squared Error: 2.39')
+print('R^2: 0.8846')
+```
+
+The second model `gs_rf` is created using `GridSearchCV` to find the optimal parameters for the model.
+
+The parameters of the model are as follows:
+
+```{python}
+#| output: true
+print("{'bootstrap': True, 'max_depth': 80, 'max_features': 3, 'min_samples_leaf': 3, 'min_samples_split': 12, 'n_estimators': 100}")
+```
+
+Results:
+
+```{python}
+#| output: true
+print('Mean Squared Error: 11.50')
+print('Mean Absolute Error: 1.75')
+print('Root Mean Squared Error: 3.39')
+print('R^2: 0.7683')
+```
+
+The third model `rs_rf` is created using `RandomizedSearchCV` to find the optimal parameters for the model.
+
+The parameters of the model are as follows:
+
+```{python}
+#| output: true
+print("{'n_estimators': 1400, 'min_samples_split': 5, 'min_samples_leaf': 2, 'max_features': 'auto', 'max_depth': None, 'bootstrap': True}")
+```
+
+Results:
+
+```{python}
+#| output: true
+print('Mean Squared Error: 5.55')
+print('Mean Absolute Error: 1.26')
+print('Root Mean Squared Error: 2.36')
+print('R^2: 0.8881')
+```
+
+### Comparison
+
+| Model    | MAE  | MSE   | RMSE | $R^2$  |
+|----------|------|-------|------|--------|
+| Baseline | 4.26 | \-    | \-   | \-     |
+| rf       | 1.26 | 5.72  | 2.39 | 0.8846 |
+| gs_rf    | 1.75 | 11.50 | 3.39 | 0.7683 |
+| rs_rf    | 1.26 | 5.55  | 2.36 | 0.8881 |
+
+The Randomized Search model has the highest $R^2$ value, and the lowest MSE and RMSE values. Along with the `rf` model, the `rs_rf` model has an MAE value that is substantially lower than the baseline error.
+
+The permutation importance is given below:
+
+<img src="permimp.svg" style="width: 2000px;">
+
+### Visualization
+
+<img src="tree.png" style="width: 2000px;">
+
+
+:::
+
+## Conclusion {.scrollable .smaller}
+
+In this analysis, we have explored the relationship between the inspection score of a restaurant and a number of factors. Hypothesis testing determined that the distribution of scores differs across multiple boroughs. In addition, a random forest regression model was created to predict the inspection score of a restaurant. The model was able to predict the inspection score with an $R^2$ value of 0.8881.
+
+There are limitations to this analysis. Errors in data as well as neglect of some variables may have affected the results. In the future, it would be interesting to explore the text data, such as the business name, cuisine type, and violation description, to see if they can be used to predict the inspection score.

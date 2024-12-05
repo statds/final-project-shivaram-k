@@ -1,0 +1,358 @@
+```{python}
+import pandas as pd
+import numpy as np
+import plotnine as p9
+from plotnine import *
+import matplotlib as plt
+import scipy.stats as stats
+from uszipcode import SearchEngine
+sr = SearchEngine()
+```
+
+```{python}
+rest22=pd.read_csv("../data/DOHMH_New_York_City_Restaurant_Inspection_Results.csv")
+rest22 = rest22.iloc[:, :-6]
+```
+Removing columns not needed for analysis
+```{python}
+pd.set_option('display.max_columns', None)
+```
+
+```{python}
+def get_zipcode(df):
+    return sr.by_coordinates(df['Latitude'], df['Longitude'], radius=5, returns=1)[0].zipcode
+
+
+rest22['ZIPCODE'] = rest22.apply(lambda x: get_zipcode(x) if (pd.isna(x['ZIPCODE']) and pd.notna(x['Latitude']) and pd.notna(x['Longitude'])) else x['ZIPCODE'], axis=1)
+```
+Filling in missing zipcodes using latitude and longitude
+
+
+```{python}
+rest22['BORO'] = rest22.apply(lambda x: 'Manhattan' if x['CAMIS'] == 50060598 else x['BORO'], axis=1)
+rest22['BORO'] = rest22.apply(lambda x: 'Brooklyn' if x['CAMIS'] == 50005059 else x['BORO'], axis=1)
+rest22['BORO'] = rest22.apply(lambda x: 'Manhattan' if x['CAMIS'] == 40883586 else x['BORO'], axis=1)
+```
+
+'BORO' variable has a factor level '0' for a few rows. Because the zip code and latitude/longitude is missing for these rows, the correct borough will be imputed using the CAMIS number. The CAMIS number is a unique identifier for each restaurant. The CAMIS number for the restaurants with the incorrect borough is found using Google and the correct borough is imputed.
+
+```{python}
+rest22.dropna(subset=['VIOLATION CODE'], inplace=True)
+rest22.dropna(subset=['GRADE'], inplace=True)
+rest22.dropna(subset=['GRADE DATE'], inplace=True)
+```
+
+```{python}
+rest22 = rest22[rest22['VIOLATION CODE'].str.contains('-') == False]
+```
+removing violation codes that were incorrectly input, as there is no method of determining which specific violations are referred to by these codes
+
+```{python}
+vicode=pd.read_csv("../data/Violation-Health-Code-Mapping.csv")
+```
+
+```{python}
+vicode['Category_Description'].value_counts()
+```
+
+```{python}
+newdf = rest22.merge(vicode.drop_duplicates(subset=['Violation_Code']), left_on='VIOLATION CODE', right_on='Violation_Code', how='left')
+```
+
+```{python}
+newdf['ACTION'] = newdf['ACTION'].replace(['Violations were cited in the following area(s).', 'Establishment re-opened by DOHMH.','Establishment Closed by DOHMH. Violations were cited in the following area(s) and those requiring immediate action were addressed.'], ['Violation', 'Re-Opened', 'Closed'])
+```
+
+```{python}
+newdf['VIOLATION COUNT'] = newdf.groupby(['CAMIS', 'INSPECTION DATE'])['VIOLATION CODE'].transform('count')
+```
+
+
+
+```{python}
+newdf['CRITICAL FLAG'] = newdf['CRITICAL FLAG'].replace(['Critical', 'Not Critical'], [1, 0])
+```
+
+
+```{python}
+newdf['CRITICAL COUNT'] = newdf.groupby(['CAMIS', 'INSPECTION DATE'])['CRITICAL FLAG'].transform('sum')
+```
+
+
+
+```{python}
+newdf = newdf[newdf['GRADE'].isin(['A', 'B', 'C'])]
+```
+
+
+
+
+```{python}
+newdf['DAY TYPE'] = newdf['INSPECTION DATE'].apply(lambda x: 'Weekday' if pd.to_datetime(x).weekday() < 5 else 'Weekend')
+```
+
+
+
+
+```{python}
+for i in vicode['Category_Description'].unique():
+    newdf[i] = newdf.groupby(['CAMIS', 'INSPECTION DATE'])['Category_Description'].transform(lambda x: (x == i).sum())
+```
+
+
+
+```{python}
+newdf = newdf.loc[:, newdf.apply(pd.Series.nunique) != 1]
+```
+
+
+
+```{python}
+newdf.drop_duplicates(subset=['CAMIS', 'INSPECTION DATE'], inplace=True)
+```
+
+```{python}
+newdf.to_csv("../data/newdf.csv", index=False)
+```
+
+
+```{python}
+(
+    ggplot(newdf, aes(x='BORO', fill = 'GRADE')) + geom_bar() + theme(axis_text_x = element_text(angle = 90, hjust = 1)) + labs(title = 'Number of Inspections by Borough and Grade', x = 'Borough', y = 'Number of Inspections')
+)
+ ```
+
+ ```{python}
+ (
+    ggplot(newdf, aes(x='BORO', y = 'SCORE', fill = 'BORO')) + coord_flip() + geom_violin() + labs(title = 'Distribution of Inspection Scores by Borough', x = 'Borough', y = 'Score') + theme(legend_position = 'none')
+)
+ ```
+
+
+
+```{python}
+(
+    ggplot(newdf, aes(x='BORO', fill = 'GRADE')) + geom_bar(position = 'fill') + theme(axis_text_x = element_text(angle = 90, hjust = 1)) + labs(title = 'Proportion of Grades by Borough', x = 'Borough', y = 'Proportion of Grades')
+)
+ ```
+
+
+```{python}
+cuislist = newdf['CUISINE DESCRIPTION'].value_counts().tolist()
+import matplotlib.pyplot as plt
+plt.pie(cuislist, labels = newdf['CUISINE DESCRIPTION'].value_counts().index.tolist(), rotatelabels=True, radius = 2)
+plt.show()
+```
+
+
+ ```{python}
+ gmp = newdf.dropna(subset=['Latitude', 'Longitude'])
+ import gmplot
+ gmap = gmplot.GoogleMapPlotter.from_geocode("New York City", apikey='AIzaSyD6bvbXQdG9WX7aab1tQKHorou7Fkjj6j0')
+ gmap.heatmap(gmp['Latitude'], gmp['Longitude'])
+ gmap.draw("heatmap.html")
+ ```
+
+ 
+
+
+```{python}
+learndf = newdf.drop(columns=['CAMIS', 'DBA', 'BUILDING', 'STREET', 'ZIPCODE', 'PHONE', 'CUISINE DESCRIPTION', 'INSPECTION DATE', 'ACTION', 'VIOLATION CODE', 'CRITICAL FLAG', 'GRADE DATE', 'Violation_Code', 'Category_Description', 'Condition I', 'Condition II', 'Condition III', 'Condition IV', 'Condition V', 'Violation_Template', 'Health_Code', 'BBL', 'BIN', 'NTA', 'Latitude', 'Longitude', 'Census Tract', 'Community Board', 'Council District', 'Violation_Summary', 'VIOLATION DESCRIPTION'])
+```
+
+
+
+```{python}
+learndf['INSPECTION TYPE'] = learndf['INSPECTION TYPE'].replace(['Cycle Inspection / Initial Inspection', 'Cycle Inspection / Re-inspection', 'Pre-permit (Operational) / Initial Inspection', 'Pre-permit (Operational) / Re-inspection', 'Cycle Inspection / Reopening Inspection', 'Pre-permit (Operational) / Reopening Inspection'], ['Cycle', 'Cycle', 'Pre-permit', 'Pre-permit', 'Cycle', 'Pre-permit'])
+```
+
+
+
+```{python}
+learndf = pd.get_dummies(learndf, columns=['BORO', 'DAY TYPE', 'INSPECTION TYPE'])
+
+learndf['GRADE'] = learndf['GRADE'].replace(['A', 'B', 'C'], [1, 2, 3])
+```
+
+```{python}
+y = np.array(learndf['SCORE'])
+X = np.array(learndf.drop('SCORE', axis=1))
+```
+
+
+```{python}
+feature_names = learndf.drop('SCORE', axis=1).columns
+```
+
+```{python}
+from sklearn.model_selection import train_test_split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=19)
+```
+
+```{python}
+baseline_preds = np.mean(y_train)
+baseline_preds = np.repeat(baseline_preds, len(y_test))
+baseline_errors = abs(baseline_preds - y_test)
+print('Average baseline error: ', round(np.mean(baseline_errors), 2)) # 4.26
+```
+
+```{python}
+from sklearn.ensemble import RandomForestRegressor
+
+rf = RandomForestRegressor(n_estimators = 1000, random_state = 19)
+```
+
+```{python}
+rf.fit(X_train, y_train)
+```
+
+```{python}
+predictions = rf.predict(X_test)
+```
+
+```{python}
+print(rf.score(X_test, y_test))
+```
+
+```{python}
+from sklearn import metrics
+print('Mean Squared Error:', metrics.mean_squared_error(y_test, predictions)) # 5.724185428564326
+print('Mean Absolute Error:', metrics.mean_absolute_error(y_test, predictions)) # 1.2582159775476593
+print('Root Mean Squared Error:', np.sqrt(metrics.mean_squared_error(y_test, predictions))) # 2.392526996412857
+```
+
+
+
+```{python}
+from sklearn.model_selection import RandomizedSearchCV
+from sklearn.model_selection import GridSearchCV
+param_grid = {
+    'bootstrap': [True],
+    'max_depth': [80, 90, 100, 110],
+    'max_features': [2, 3],
+    'min_samples_leaf': [3, 4, 5],
+    'min_samples_split': [8, 10, 12],
+    'n_estimators': [100, 200, 300, 1000]
+}
+gs_rf = GridSearchCV(estimator = rf, param_grid = param_grid, cv = 3, n_jobs = -1, verbose = 2)
+
+```
+
+```{python}
+gs_rf.fit(X_train, y_train)
+print(gs_rf.best_params_)
+```
+
+```{python}
+best_grid = gs_rf.best_estimator_
+print(best_grid.score(X_test, y_test))
+```
+
+```{python}
+n_estimators = [int(x) for x in np.linspace(start = 200, stop = 2000, num = 10)]
+max_features = ['auto', 'sqrt']
+max_depth = [int(x) for x in np.linspace(10, 110, num = 11)]
+max_depth.append(None)
+min_samples_split = [2, 5, 10]
+min_samples_leaf = [1, 2, 4]
+bootstrap = [True, False]
+random_grid = {'n_estimators': n_estimators,
+               'max_features': max_features,
+               'max_depth': max_depth,
+               'min_samples_split': min_samples_split,
+               'min_samples_leaf': min_samples_leaf,
+               'bootstrap': bootstrap}
+print(random_grid)
+```
+
+```{python}
+rs_rf = RandomizedSearchCV(estimator = rf, param_distributions = random_grid, n_iter = 100, cv = 3, verbose=2, random_state=19, n_jobs = -1)
+```
+
+```{python}
+rs_rf.fit(X_train, y_train)
+```
+
+```{python}
+print(rs_rf.best_params_)
+best_random = rs_rf.best_estimator_
+print(best_random.score(X_test, y_test))
+```
+
+
+```{python}
+best_grid.fit(X_train, y_train)
+```
+
+```{python}
+gs_pred = best_grid.predict(X_test)
+```
+
+```{python}
+print('Mean Squared Error:', metrics.mean_squared_error(y_test, gs_pred)) # 11.500473924227698
+print('Mean Absolute Error:', metrics.mean_absolute_error(y_test, gs_pred)) # 1.7535802778384961
+print('Root Mean Squared Error:', np.sqrt(metrics.mean_squared_error(y_test, gs_pred))) # 3.391234867157935
+```
+
+```{python}
+best_random.fit(X_train, y_train)
+```
+
+```{python}
+rs_pred = best_random.predict(X_test)
+```
+
+```{python}
+print('Mean Squared Error:', metrics.mean_squared_error(y_test, rs_pred)) # 5.5519092305346085
+print('Mean Absolute Error:', metrics.mean_absolute_error(y_test, rs_pred)) # 1.2598559573303116
+print('Root Mean Squared Error:', np.sqrt(metrics.mean_squared_error(y_test, rs_pred))) # 2.3562489746490307
+```
+
+
+```{python}
+viz = RandomForestRegressor(max_features='auto', min_samples_leaf=2, min_samples_split=5, n_estimators=1400, random_state=19)
+```
+
+```{python}
+viz.fit(X_train, y_train)
+```
+
+```{python}
+vizpred = viz.predict(X_test)
+```
+
+```{python}
+viz.score(X_test, y_test)
+```
+
+```{python}
+from sklearn.inspection import permutation_importance
+perm_imp=permutation_importance(viz, X_test, y_test)
+```
+
+```{python}
+plt.rcParams.update({'figure.figsize': (12.0, 8.0)})
+plt.rcParams.update({'font.size': 14})
+sorted_idx = perm_imp.importances_mean.argsort()
+plt.barh(feature_names[sorted_idx], perm_imp.importances_mean[sorted_idx])
+plt.xlabel("Permutation Importance")
+plt.show()
+```
+
+```{python}
+import os
+os.environ["PATH"] += os.pathsep + 'C:/Program Files (x86)/Graphviz2.38/bin/'
+```
+```{python}
+from sklearn.tree import export_graphviz
+import pydot
+tree = viz.estimators_[5]
+export_graphviz(tree, out_file = 'tree.dot', feature_names = list(learndf.drop('SCORE', axis=1)), rounded = True, precision = 1)
+(graph, ) = pydot.graph_from_dot_file('tree.dot')
+graph.write_png('tree.png')
+```
+
+
+```{python}
+learndf.to_csv('../data/learndf.csv', index=False)
+```
